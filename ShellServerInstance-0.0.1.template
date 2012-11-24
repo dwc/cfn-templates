@@ -162,7 +162,8 @@
                 "screen" : [],
                 "emacs" : [],
                 "git" : [],
-                "irssi" : []
+                "irssi" : [],
+                "irssi-scripts" : []
               }
             },
             "files" : {
@@ -175,6 +176,11 @@
                   "rmdir dotfiles\n",
                   "mv irssi-config .irssi/config\n",
                   "git clone ", { "Ref" : "ScriptsRepoURL" }, " bin\n",
+                  "mkdir -p .irssi/scripts/autorun\n",
+                  "mv irssi-usercount.pl .irssi/scripts/usercount.pl\n",
+                  "cd .irssi/scripts/autorun\n",
+                  "ln -s ../usercount.pl\n",
+                  "for script in logcompress.pl topic-diff.pl trackbar.pl; do ln -s /usr/share/irssi/scripts/$script; done\n",
                   "echo \"$0 finished!\"\n"
                 ] ] },
                 "mode" : "000755",
@@ -196,6 +202,12 @@
                 "owner" : "ubuntu",
                 "group" : "ubuntu",
                 "authentication" : "LockerAccessCredentials"
+              },
+              "/home/ubuntu/irssi-usercount.pl" : {
+                "source" : "http://scripts.irssi.org/scripts/usercount.pl",
+                "mode" : "000600",
+                "owner" : "ubuntu",
+                "group" : "ubuntu"
               }
             }
           }
