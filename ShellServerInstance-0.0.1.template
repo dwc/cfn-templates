@@ -1,7 +1,7 @@
 {
   "AWSTemplateFormatVersion" : "2010-09-09",
 
-  "Description" : "Create a personal 64-bit EC2 instance running Ubuntu 12.04.1 LTS. The AMI is chosen based on the region in which the stack is run based on those listed at http://cloud-images.ubuntu.com/releases/precise/release-20121001/. SSH access is enabled via a new EC2 security group. The stack installs basic packages (including screen, emacs, git, and irssi).",
+  "Description" : "Create a personal 64-bit EC2 instance running Ubuntu 12.04.1 LTS. The AMI is chosen based on the region in which the stack is run based on those listed at http://cloud-images.ubuntu.com/releases/precise/release-20121001/. SSH access is enabled via a new EC2 security group. The stack installs basic packages (including screen, emacs, git, and irssi), and pulls down configuration files and scripts.",
 
   "Parameters" : {
     "InstanceType" : {
@@ -21,6 +21,24 @@
       "Type" : "String",
       "Default" : "default",
       "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the instance"
+    },
+
+    "LockerBucketName" : {
+      "Type" : "String",
+      "Default" : "locker.danieltwc.com",
+      "Description" : "Name of bucket containing private configuration files"
+    },
+
+    "DotfilesRepoURL" : {
+      "Type" : "String",
+      "Default" : "git://github.com/dwc/dotfiles.git",
+      "Description" : "URL of Git repository containing dotfiles for $HOME"
+    },
+
+    "ScriptsRepoURL" : {
+      "Type" : "String",
+      "Default" : "git://github.com/dwc/scripts.git",
+      "Description" : "URL of Git repository containing scripts for $HOME/bin"
     }
   },
 
@@ -51,6 +69,31 @@
   },
 
   "Resources" : {
+    "CfnUser" : {
+      "Type" : "AWS::IAM::User",
+      "Properties" : {
+        "Path" : "/",
+        "Policies" : [ {
+          "PolicyName" : "root",
+          "PolicyDocument" : { "Statement" : [ {
+            "Effect" : "Allow",
+            "Action" : [
+              "cloudformation:DescribeStackResource",
+              "s3:GetObject"
+            ],
+            "Resource" : "*"
+          } ] }
+        } ]
+      }
+    },
+
+    "CfnKeys" : {
+      "Type" : "AWS::IAM::AccessKey",
+      "Properties" : {
+        "UserName" : { "Ref" : "CfnUser" }
+      }
+    },
+
     "InstanceSecurityGroup" : {
       "Type" : "AWS::EC2::SecurityGroup",
       "Properties" : {
@@ -61,28 +104,6 @@
           "ToPort" : "22",
           "CidrIp" : "0.0.0.0/0"
         } ]
-      }
-    },
-
-    "CfnUser" : {
-      "Type" : "AWS::IAM::User",
-      "Properties" : {
-        "Path" : "/",
-        "Policies" : [ {
-          "PolicyName" : "root",
-          "PolicyDocument" : { "Statement": [ {
-            "Effect" : "Allow",
-            "Action" : "cloudformation:DescribeStackResource",
-            "Resource" : "*"
-          } ] }
-        } ]
-      }
-    },
-
-    "HostKeys" : {
-      "Type" : "AWS::IAM::AccessKey",
-      "Properties" : {
-        "UserName" : { "Ref" : "CfnUser" }
       }
     },
 
@@ -99,31 +120,41 @@
 
           "function error_exit\n",
           "{\n",
-          "  cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandleShellServerInstance" }, "'\n",
+          "  cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandle" }, "'\n",
           "  exit 1\n",
           "}\n",
 
           "echo '### Updating packages...' >> /tmp/cfn-init.log\n",
           "apt-get -y update >> /tmp/cfn-init.log 2>&1\n",
 
-          "# Install CloudFormation boostrap scripts\n",
           "echo '### Installing CloudFormation bootstrap scripts...' >> /tmp/cfn-init.log\n",
           "apt-get -y install python-pip >> /tmp/cfn-init.log 2>&1\n",
           "pip install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz >> /tmp/cfn-init.log\n",
 
-          "# Run through AWS::CloudFormation::Init below\n",
-          "echo '### Bootstrapping CloudFormation...' >> /tmp/cfn-init.log\n",
+          "echo '### Bootstrapping CloudFormation using AWS::CloudFormation::Init resources...' >> /tmp/cfn-init.log\n",
           "cfn-init -v -s ", { "Ref" : "AWS::StackName" }, " -r ShellServerInstance",
-          " --access-key ",  { "Ref" : "HostKeys" },
-          " --secret-key ", { "Fn::GetAtt": [ "HostKeys", "SecretAccessKey" ] },
+          " --access-key ",  { "Ref" : "CfnKeys" },
+          " --secret-key ", { "Fn::GetAtt": [ "CfnKeys", "SecretAccessKey" ] },
           " --region ", { "Ref" : "AWS::Region" }, " >> /tmp/cfn-init.log 2>&1 || error_exit $(</tmp/cfn-init.log)\n",
 
-          "# Tell CloudFormation that we're done\n",
+          "echo '### Running the user home setup script...' >> /tmp/cfn-init.log\n",
+          "sudo -i -u ubuntu /tmp/setup-user-home.sh >> /tmp/cfn-init.log 2>&1\n",
+
           "echo '### Sending setup complete signal...' >> /tmp/cfn-init.log\n",
-          "cfn-signal -e 0 -r \"Instance setup complete\" '", { "Ref" : "WaitHandleShellServerInstance" }, "'\n"
+          "cfn-signal -e 0 -r \"Instance setup complete\" '", { "Ref" : "WaitHandle" }, "'\n"
         ] ] } }
       },
+
       "Metadata" : {
+        "AWS::CloudFormation::Authentication" : {
+          "LockerAccessCredentials" : {
+            "type" : "S3",
+            "accessKeyId" : { "Ref" : "CfnKeys" },
+            "secretKey" : { "Fn::GetAtt": ["CfnKeys", "SecretAccessKey"] },
+            "buckets" : [ { "Ref" : "LockerBucketName" } ]
+          }
+        },
+
         "AWS::CloudFormation::Init" : {
           "config" : {
             "packages" : {
@@ -131,8 +162,40 @@
                 "screen" : [],
                 "emacs" : [],
                 "git" : [],
-                "irssi" : [],
-                "s3cmd" : []
+                "irssi" : []
+              }
+            },
+            "files" : {
+              "/tmp/setup-user-home.sh" : {
+                "content" : { "Fn::Join" : ["", [
+                  "#!/bin/sh\n",
+                  "git clone ", { "Ref" : "DotfilesRepoURL" }, "\n",
+                  "mv dotfiles/.git .dotfiles.git\n",
+                  "mv dotfiles/.* .\n",
+                  "rmdir dotfiles\n",
+                  "mv irssi-config .irssi/config\n",
+                  "git clone ", { "Ref" : "ScriptsRepoURL" }, " bin\n",
+                  "echo \"$0 finished!\"\n"
+                ] ] },
+                "mode" : "000755",
+                "owner" : "ubuntu",
+                "group" : "ubuntu"
+              },
+              "/home/ubuntu/.gitconfig" : {
+                "source" : { "Fn::Join" : [ "", [ "https://s3.amazonaws.com/",
+                                                  { "Ref" : "LockerBucketName" }, "/.gitconfig"]]},
+                "mode" : "000600",
+                "owner" : "ubuntu",
+                "group" : "ubuntu",
+                "authentication" : "LockerAccessCredentials"
+              },
+              "/home/ubuntu/irssi-config" : {
+                "source" : { "Fn::Join" : [ "", [ "https://s3.amazonaws.com/",
+                                                  { "Ref" : "LockerBucketName" }, "/.irssi/config"]]},
+                "mode" : "000600",
+                "owner" : "ubuntu",
+                "group" : "ubuntu",
+                "authentication" : "LockerAccessCredentials"
               }
             }
           }
@@ -140,9 +203,17 @@
       }
     },
 
-    "WaitHandleShellServerInstance" : {
-      "Type" : "AWS::CloudFormation::WaitConditionHandle",
-      "Properties" : {}
+    "WaitHandle" : {
+      "Type" : "AWS::CloudFormation::WaitConditionHandle"
+    },
+
+    "WaitCondition" : {
+      "Type" : "AWS::CloudFormation::WaitCondition",
+      "DependsOn" : "ShellServerInstance",
+      "Properties" : {
+        "Handle" : { "Ref" : "WaitHandle" },
+        "Timeout" : "300"
+      }
     }
   },
 
