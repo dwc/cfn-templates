@@ -4,17 +4,23 @@
   "Description" : "Create a personal 64-bit EC2 instance running Ubuntu 12.04.1 LTS. The AMI is chosen based on the region in which the stack is run based on those listed at http://cloud-images.ubuntu.com/releases/precise/release-20121001/. SSH access is enabled via a new EC2 security group. The stack installs basic packages (including screen, emacs, git, and irssi).",
 
   "Parameters" : {
-    "KeyName" : {
-      "Type" : "String",
-      "Default" : "default",
-      "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the instance"
-    },
-
     "InstanceType" : {
       "Type" : "String",
       "Default" : "t1.micro",
       "AllowedValues" : [ "t1.micro", "m1.small", "m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.xlarge", "cc1.4xlarge" ],
-      "Description" : "EC2 instance type (e.g. m1.small, m1.medium, m1.large)"
+      "Description" : "EC2 instance type (e.g. m1.small)"
+    },
+
+    "AvailabilityZone" : {
+      "Type" : "String",
+      "Default" : "us-east-1e",
+      "Description" : "EC2 availability zone (e.g. us-east-1e)"
+    },
+
+    "KeyName" : {
+      "Type" : "String",
+      "Default" : "default",
+      "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the instance"
     }
   },
 
@@ -84,6 +90,7 @@
       "Type" : "AWS::EC2::Instance",
       "Properties" : {
         "InstanceType" : { "Ref" : "InstanceType" },
+        "AvailabilityZone" : { "Ref" : "AvailabilityZone" },
         "ImageId" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "AMI" ]},
         "SecurityGroups" : [ { "Ref" : "InstanceSecurityGroup" } ],
         "KeyName" : { "Ref" : "KeyName" },
@@ -145,7 +152,7 @@
       "Value" : { "Ref" : "ShellServerInstance" }
     },
     "AvailabilityZone" : {
-      "Description" : "Availability Zone of the newly created EC2 instance",
+      "Description" : "Availability zone of the newly created EC2 instance",
       "Value" : { "Fn::GetAtt" : [ "ShellServerInstance", "AvailabilityZone" ] }
     },
     "PublicIP" : {
