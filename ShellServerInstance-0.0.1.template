@@ -1,0 +1,156 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Create a personal 64-bit EC2 instance running Ubuntu 12.04.1 LTS. The AMI is chosen based on the region in which the stack is run based on those listed at http://cloud-images.ubuntu.com/releases/precise/release-20121001/. SSH access is enabled via a new EC2 security group. The stack installs basic packages (including screen, emacs, git, and irssi).",
+
+  "Parameters" : {
+    "KeyName" : {
+      "Type" : "String",
+      "Default" : "default",
+      "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the instance"
+    },
+
+    "InstanceType" : {
+      "Type" : "String",
+      "Default" : "t1.micro",
+      "AllowedValues" : [ "t1.micro", "m1.small", "m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.xlarge", "cc1.4xlarge" ],
+      "Description" : "EC2 instance type (e.g. m1.small, m1.medium, m1.large)"
+    }
+  },
+
+  "Mappings" : {
+    "RegionMap" : {
+      "us-east-1" : {
+        "AMI" : "ami-3d4ff254"
+      },
+      "us-west-1" : {
+        "AMI" : "ami-0d153248"
+      },
+      "us-west-2" : {
+        "AMI" : "ami-8e109ebe"
+      },
+      "eu-west-1" : {
+        "AMI" : "ami-c1aaabb5"
+      },
+      "ap-northeast-1" : {
+        "AMI" : "ami-22ad1223"
+      },
+      "ap-southeast-1" : {
+        "AMI" : "ami-e88acaba"
+      },
+      "sa-east-1" : {
+        "AMI" : "ami-c819c0d5"
+      }
+    }
+  },
+
+  "Resources" : {
+    "InstanceSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable SSH access via port 22",
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "22",
+          "ToPort" : "22",
+          "CidrIp" : "0.0.0.0/0"
+        } ]
+      }
+    },
+
+    "CfnUser" : {
+      "Type" : "AWS::IAM::User",
+      "Properties" : {
+        "Path" : "/",
+        "Policies" : [ {
+          "PolicyName" : "root",
+          "PolicyDocument" : { "Statement": [ {
+            "Effect" : "Allow",
+            "Action" : "cloudformation:DescribeStackResource",
+            "Resource" : "*"
+          } ] }
+        } ]
+      }
+    },
+
+    "HostKeys" : {
+      "Type" : "AWS::IAM::AccessKey",
+      "Properties" : {
+        "UserName" : { "Ref" : "CfnUser" }
+      }
+    },
+
+    "ShellServerInstance" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "InstanceType" : { "Ref" : "InstanceType" },
+        "ImageId" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "AMI" ]},
+        "SecurityGroups" : [ { "Ref" : "InstanceSecurityGroup" } ],
+        "KeyName" : { "Ref" : "KeyName" },
+        "UserData" : { "Fn::Base64" : { "Fn::Join" : [ "", [
+          "#!/bin/bash\n",
+
+          "function error_exit\n",
+          "{\n",
+          "  cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandleShellServerInstance" }, "'\n",
+          "  exit 1\n",
+          "}\n",
+
+          "echo '### Updating packages...' >> /tmp/cfn-init.log\n",
+          "apt-get -y update >> /tmp/cfn-init.log 2>&1\n",
+
+          "# Install CloudFormation boostrap scripts\n",
+          "echo '### Installing CloudFormation bootstrap scripts...' >> /tmp/cfn-init.log\n",
+          "apt-get -y install python-pip >> /tmp/cfn-init.log 2>&1\n",
+          "pip install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz >> /tmp/cfn-init.log\n",
+
+          "# Run through AWS::CloudFormation::Init below\n",
+          "echo '### Bootstrapping CloudFormation...' >> /tmp/cfn-init.log\n",
+          "cfn-init -v -s ", { "Ref" : "AWS::StackName" }, " -r ShellServerInstance",
+          " --access-key ",  { "Ref" : "HostKeys" },
+          " --secret-key ", { "Fn::GetAtt": [ "HostKeys", "SecretAccessKey" ] },
+          " --region ", { "Ref" : "AWS::Region" }, " >> /tmp/cfn-init.log 2>&1 || error_exit $(</tmp/cfn-init.log)\n",
+
+          "# Tell CloudFormation that we're done\n",
+          "echo '### Sending setup complete signal...' >> /tmp/cfn-init.log\n",
+          "cfn-signal -e 0 -r \"Instance setup complete\" '", { "Ref" : "WaitHandleShellServerInstance" }, "'\n"
+        ] ] } }
+      },
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "config" : {
+            "packages" : {
+              "apt" : {
+                "screen" : [],
+                "emacs" : [],
+                "git" : [],
+                "irssi" : [],
+                "s3cmd" : []
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "WaitHandleShellServerInstance" : {
+      "Type" : "AWS::CloudFormation::WaitConditionHandle",
+      "Properties" : {}
+    }
+  },
+
+  "Outputs" : {
+    "InstanceId" : {
+      "Description" : "ID of the newly created EC2 instance",
+      "Value" : { "Ref" : "ShellServerInstance" }
+    },
+    "AvailabilityZone" : {
+      "Description" : "Availability Zone of the newly created EC2 instance",
+      "Value" : { "Fn::GetAtt" : [ "ShellServerInstance", "AvailabilityZone" ] }
+    },
+    "PublicIP" : {
+      "Description" : "Public IP address of the newly created EC2 instance",
+      "Value" : { "Fn::GetAtt" : [ "ShellServerInstance", "PublicIp" ] }
+    }
+  }
+}
