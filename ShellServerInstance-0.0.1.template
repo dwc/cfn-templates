@@ -8,7 +8,7 @@
       "Type" : "String",
       "Default" : "t1.micro",
       "AllowedValues" : [ "t1.micro", "m1.small", "m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.xlarge", "cc1.4xlarge" ],
-      "Description" : "EC2 instance type (e.g. m1.small)"
+      "Description" : "EC2 instance type (e.g. t1.micro)"
     },
 
     "AvailabilityZone" : {
@@ -21,6 +21,12 @@
       "Type" : "String",
       "Default" : "default",
       "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the instance"
+    },
+
+    "TimeZone" : {
+      "Type" : "String",
+      "Default" : "US/Pacific",
+      "Description" : "Time zone identifier for the instance (e.g. US/Pacific)"
     },
 
     "LockerBucketName" : {
@@ -136,6 +142,9 @@
           " --access-key ",  { "Ref" : "CfnKeys" },
           " --secret-key ", { "Fn::GetAtt": [ "CfnKeys", "SecretAccessKey" ] },
           " --region ", { "Ref" : "AWS::Region" }, " >> /tmp/cfn-init.log 2>&1 || error_exit $(</tmp/cfn-init.log)\n",
+
+          "echo '### Setting server time zone...' >> /tmp/cfn-init.log\n",
+          "cp /usr/share/zoneinfo/", { "Ref" : "TimeZone" }, " /etc/localtime >> /tmp/cfn-init.log 2>&1\n",
 
           "echo '### Running the user home setup script...' >> /tmp/cfn-init.log\n",
           "sudo -i -u ubuntu /tmp/setup-user-home.sh >> /tmp/cfn-init.log 2>&1\n",
