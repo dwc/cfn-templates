@@ -31,7 +31,7 @@
 
     "LockerBucketName" : {
       "Type" : "String",
-      "Default" : "locker.danieltwc.com",
+      "Default" : "locker.danieltwc.net",
       "Description" : "Name of bucket containing private configuration files"
     },
 
