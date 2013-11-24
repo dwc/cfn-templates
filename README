@@ -1,0 +1,5 @@
+Create AWS resources using CloudFormation.
+
+For example, to provision a shell server:
+
+  cfn-create-stack ShellServer0 --template-file ShellServerInstance-0.0.1.template --capabilities CAPABILITY_IAM
