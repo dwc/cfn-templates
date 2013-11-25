@@ -1,7 +1,7 @@
 {
   "AWSTemplateFormatVersion" : "2010-09-09",
 
-  "Description" : "Create a personal 64-bit EC2 instance running Ubuntu 12.04.1 LTS. The AMI is chosen based on the region in which the stack is run based on those listed at http://cloud-images.ubuntu.com/releases/precise/release-20121001/. SSH access is enabled via a new EC2 security group. The stack installs basic packages (including screen, emacs, git, and irssi), and pulls down configuration files and scripts.",
+  "Description" : "Create a personal 64-bit EC2 instance running Ubuntu 12.04.3 LTS. The AMI is chosen based on the region in which the stack is run based on those listed at http://cloud-images.ubuntu.com/releases/12.04.3/release-20131114/. SSH access is enabled via a new EC2 security group. The stack installs basic packages (including screen, emacs, git, and irssi), and pulls down configuration files and scripts.",
 
   "Parameters" : {
     "InstanceType" : {
@@ -51,25 +51,28 @@
   "Mappings" : {
     "RegionMap" : {
       "us-east-1" : {
-        "AMI" : "ami-3d4ff254"
+        "AMI" : "ami-d9a98cb0"
       },
       "us-west-1" : {
-        "AMI" : "ami-0d153248"
+        "AMI" : "ami-0ca99f49"
       },
       "us-west-2" : {
-        "AMI" : "ami-8e109ebe"
+        "AMI" : "ami-50b22960"
       },
       "eu-west-1" : {
-        "AMI" : "ami-c1aaabb5"
+        "AMI" : "ami-55c92422"
       },
       "ap-northeast-1" : {
-        "AMI" : "ami-22ad1223"
+        "AMI" : "ami-df0a6dde"
       },
       "ap-southeast-1" : {
-        "AMI" : "ami-e88acaba"
+        "AMI" : "ami-a0de8bf2"
+      },
+      "ap-southeast-2" : {
+        "AMI" : "ami-c90498f3"
       },
       "sa-east-1" : {
-        "AMI" : "ami-c819c0d5"
+        "AMI" : "ami-e53492f8"
       }
     }
   },
