@@ -1,20 +1,20 @@
 {
   "AWSTemplateFormatVersion" : "2010-09-09",
 
-  "Description" : "Create a personal 64-bit EC2 instance running Ubuntu 14.04 LTS. The AMI is chosen based on the region in which the stack is run based on those listed at http://cloud-images.ubuntu.com/releases/14.04/release-20140816/. SSH access is enabled via a new EC2 security group. The stack installs basic packages (including screen, emacs, git, and irssi), and pulls down configuration files and scripts.",
+  "Description" : "Create a personal 64-bit EC2 instance running Amazon Linux 2015.09.1 (https://aws.amazon.com/amazon-linux-ami/). SSH access is enabled via a new EC2 security group. The stack installs basic packages (including screen, emacs, git, and irssi), and pulls down configuration files and scripts.",
 
   "Parameters" : {
     "InstanceType" : {
       "Type" : "String",
-      "Default" : "t1.micro",
-      "AllowedValues" : [ "t1.micro", "m1.small", "m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.xlarge", "cc1.4xlarge" ],
-      "Description" : "EC2 instance type (e.g. t1.micro)"
+      "Default" : "t2.micro",
+      "AllowedValues" : [ "t2.micro", "t2.small", "t2.medium", "t2.large", "m4.large", "m4.xlarge", "m4.2xlarge", "m4.4xlarge", "m4.10xlarge" ],
+      "Description" : "EC2 instance type (e.g., t2.micro)"
     },
 
     "AvailabilityZone" : {
       "Type" : "String",
-      "Default" : "us-east-1e",
-      "Description" : "EC2 availability zone (e.g. us-east-1e)"
+      "Default" : "us-west-2c",
+      "Description" : "EC2 availability zone (e.g., us-west-2c)"
     },
 
     "KeyName" : {
@@ -26,7 +26,7 @@
     "TimeZone" : {
       "Type" : "String",
       "Default" : "US/Pacific",
-      "Description" : "Time zone identifier for the instance (e.g. US/Pacific)"
+      "Description" : "Time zone identifier for the instance (e.g., US/Pacific)"
     },
 
     "LockerBucketName" : {
@@ -50,29 +50,9 @@
 
   "Mappings" : {
     "RegionMap" : {
-      "ap-northeast-1" : {
-        "AMI" : "ami-c786dcc6"
-      },
-      "ap-southeast-1" : {
-        "AMI" : "ami-eefca7bc"
-      },
-      "ap-southeast-2" : {
-        "AMI" : "ami-996706a3"
-      },
-      "eu-west-1" : {
-        "AMI" : "ami-4ab46b3d"
-      },
-      "sa-east-1" : {
-        "AMI" : "ami-6770d87a"
-      },
-      "us-east-1" : {
-        "AMI" : "ami-d2ff23ba"
-      },
-      "us-west-1" : {
-        "AMI" : "ami-73717d36"
-      },
       "us-west-2" : {
-        "AMI" : "ami-f1ce8bc1"
+        "AMI" : "ami-f0091d91",
+        "EBSSnapshot" : "snap-ad8e61f8"
       }
     }
   },
@@ -124,24 +104,31 @@
         "ImageId" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "AMI" ]},
         "SecurityGroups" : [ { "Ref" : "InstanceSecurityGroup" } ],
         "KeyName" : { "Ref" : "KeyName" },
+        "BlockDeviceMappings" : [
+          {
+            "DeviceName" : "/dev/xvda",
+            "Ebs" : {
+              "VolumeType" : "gp2",
+              "DeleteOnTermination" : "true",
+              "VolumeSize" : "8",
+              "SnapshotId" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "EBSSnapshot" ]}
+            }
+          }
+        ],
         "UserData" : { "Fn::Base64" : { "Fn::Join" : [ "", [
           "#!/bin/bash\n",
 
-          "function error_exit\n",
-          "{\n",
-          "  cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandle" }, "'\n",
+          "function error_exit {\n",
+          "  /opt/aws/bin/cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandle" }, "'\n",
           "  exit 1\n",
           "}\n",
 
           "echo '### Updating packages...' >> /tmp/cfn-init.log\n",
-          "apt-get -y update >> /tmp/cfn-init.log 2>&1\n",
-
-          "echo '### Installing CloudFormation bootstrap scripts...' >> /tmp/cfn-init.log\n",
-          "apt-get -y install python-pip >> /tmp/cfn-init.log 2>&1\n",
-          "pip install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz >> /tmp/cfn-init.log\n",
+          "yum update >> /tmp/cfn-init.log 2>&1\n",
+          "yum upgrade >> /tmp/cfn-init.log 2>&1\n",
 
           "echo '### Bootstrapping CloudFormation using AWS::CloudFormation::Init resources...' >> /tmp/cfn-init.log\n",
-          "cfn-init -v -s ", { "Ref" : "AWS::StackName" }, " -r ShellServerInstance",
+          "/opt/aws/bin/cfn-init -v -s ", { "Ref" : "AWS::StackName" }, " -r ShellServerInstance",
           " --access-key ",  { "Ref" : "CfnKeys" },
           " --secret-key ", { "Fn::GetAtt": [ "CfnKeys", "SecretAccessKey" ] },
           " --region ", { "Ref" : "AWS::Region" }, " >> /tmp/cfn-init.log 2>&1 || error_exit $(</tmp/cfn-init.log)\n",
@@ -150,10 +137,10 @@
           "cp /usr/share/zoneinfo/", { "Ref" : "TimeZone" }, " /etc/localtime >> /tmp/cfn-init.log 2>&1\n",
 
           "echo '### Running the user home setup script...' >> /tmp/cfn-init.log\n",
-          "sudo -i -u ubuntu /tmp/setup-user-home.sh >> /tmp/cfn-init.log 2>&1\n",
+          "/tmp/setup-user-home.sh >> /tmp/cfn-init.log 2>&1\n",
 
           "echo '### Sending setup complete signal...' >> /tmp/cfn-init.log\n",
-          "cfn-signal -e 0 -r \"Instance setup complete\" '", { "Ref" : "WaitHandle" }, "'\n"
+          "/opt/aws/bin/cfn-signal -e 0 -r \"Instance setup complete\" '", { "Ref" : "WaitHandle" }, "'\n"
         ] ] } }
       },
 
@@ -170,18 +157,19 @@
         "AWS::CloudFormation::Init" : {
           "config" : {
             "packages" : {
-              "apt" : {
+              "yum" : {
                 "screen" : [],
                 "emacs" : [],
                 "git" : [],
-                "irssi" : [],
-                "irssi-scripts" : []
+                "irssi" : []
               }
             },
             "files" : {
               "/tmp/setup-user-home.sh" : {
                 "content" : { "Fn::Join" : ["", [
                   "#!/bin/sh\n",
+                  "base_dir=/home/ec2-user\n",
+                  "cd $base_dir\n",
                   "git clone ", { "Ref" : "DotfilesRepoURL" }, "\n",
                   "mv dotfiles/.git .dotfiles.git\n",
                   "mv dotfiles/.* .\n",
@@ -189,37 +177,47 @@
                   "mv irssi-config .irssi/config\n",
                   "git clone ", { "Ref" : "ScriptsRepoURL" }, " bin\n",
                   "mkdir -p .irssi/scripts/autorun\n",
-                  "mv irssi-usercount.pl .irssi/scripts/usercount.pl\n",
-                  "cd .irssi/scripts/autorun\n",
-                  "ln -s ../usercount.pl\n",
-                  "for script in logcompress.pl topic-diff.pl trackbar.pl; do ln -s /usr/share/irssi/scripts/$script; done\n",
+                  "for script in logcompress.pl trackbar.pl usercount.pl; do mv $script .irssi/scripts/$script && ln -s $base_dir/.irssi/scripts/$script $base_dir/.irssi/scripts/autorun; done\n",
+                  "chown -R ec2-user:ec2-user /home/ec2-user\n",
                   "echo \"$0 finished!\"\n"
                 ] ] },
                 "mode" : "000755",
-                "owner" : "ubuntu",
-                "group" : "ubuntu"
+                "owner" : "ec2-user",
+                "group" : "ec2-user"
               },
-              "/home/ubuntu/.gitconfig" : {
+              "/home/ec2-user/.gitconfig" : {
                 "source" : { "Fn::Join" : [ "", [ "https://s3.amazonaws.com/",
                                                   { "Ref" : "LockerBucketName" }, "/.gitconfig"]]},
                 "mode" : "000600",
-                "owner" : "ubuntu",
-                "group" : "ubuntu",
+                "owner" : "ec2-user",
+                "group" : "ec2-user",
                 "authentication" : "LockerAccessCredentials"
               },
-              "/home/ubuntu/irssi-config" : {
+              "/home/ec2-user/irssi-config" : {
                 "source" : { "Fn::Join" : [ "", [ "https://s3.amazonaws.com/",
                                                   { "Ref" : "LockerBucketName" }, "/.irssi/config"]]},
                 "mode" : "000600",
-                "owner" : "ubuntu",
-                "group" : "ubuntu",
+                "owner" : "ec2-user",
+                "group" : "ec2-user",
                 "authentication" : "LockerAccessCredentials"
               },
-              "/home/ubuntu/irssi-usercount.pl" : {
+              "/home/ec2-user/logcompress.pl" : {
+                "source" : "http://scripts.irssi.org/scripts/logcompress.pl",
+                "mode" : "000600",
+                "owner" : "ec2-user",
+                "group" : "ec2-user"
+              },
+              "/home/ec2-user/trackbar.pl" : {
+                "source" : "https://github.com/irssi/scripts.irssi.org/raw/09de7f76aef249e426b83113779ca4cea45f4e3a/scripts/trackbar.pl",
+                "mode" : "000600",
+                "owner" : "ec2-user",
+                "group" : "ec2-user"
+              },
+              "/home/ec2-user/usercount.pl" : {
                 "source" : "http://scripts.irssi.org/scripts/usercount.pl",
                 "mode" : "000600",
-                "owner" : "ubuntu",
-                "group" : "ubuntu"
+                "owner" : "ec2-user",
+                "group" : "ec2-user"
               }
             }
           }
