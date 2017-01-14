@@ -1,7 +1,7 @@
 {
   "AWSTemplateFormatVersion" : "2010-09-09",
 
-  "Description" : "Create a personal 64-bit EC2 instance running Amazon Linux 2015.09.1 (https://aws.amazon.com/amazon-linux-ami/). SSH access is enabled via a new EC2 security group. The stack installs basic packages (including screen, emacs, git, and irssi), and pulls down configuration files and scripts.",
+  "Description" : "Create a personal 64-bit EC2 instance running Amazon Linux 2016.09.1 (https://aws.amazon.com/amazon-linux-ami/). SSH access is enabled via a new EC2 security group. The stack installs basic packages (including screen, emacs, git, and irssi), and pulls down configuration files and scripts.",
 
   "Parameters" : {
     "InstanceType" : {
@@ -51,8 +51,8 @@
   "Mappings" : {
     "RegionMap" : {
       "us-west-2" : {
-        "AMI" : "ami-f0091d91",
-        "EBSSnapshot" : "snap-ad8e61f8"
+        "AMI" : "ami-1e299d7e",
+        "EBSSnapshot" : "snap-0bf6845989e028a9a"
       }
     }
   },
