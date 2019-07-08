@@ -51,8 +51,8 @@
   "Mappings" : {
     "RegionMap" : {
       "us-west-2" : {
-        "AMI" : "ami-e251209a",
-        "EBSSnapshot" : "snap-04503f44a925c0cb2"
+        "AMI" : "ami-a0cfeed8",
+        "EBSSnapshot" : "snap-0b9ac5da0147e5eb2"
       }
     }
   },
